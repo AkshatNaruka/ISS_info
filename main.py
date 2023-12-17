@@ -1,56 +1,71 @@
-# Dependencies
 import json
-import turtle
 import urllib.request
 import time
 import webbrowser
 import geocoder
+import streamlit as st
+import folium
+import streamlit.components.v1 as components
 
-url = "http://api.open-notify.org/astros.json"
-response = urllib.request.urlopen(url)
-result = json.loads(response.read())
-file = open("iss.txt", "w")
-file.write("There are currently " +
-           str(result["number"]) + " astronauts on the ISS: \n\n")
-people = result["people"]
-for p in people:
-    file.write(p['name'] + " - on board" + "\n")
-# print long and lat
-g = geocoder.ip('me')
-file.write("\nYour current lat / long is: " + str(g.latlng))
-file.close()
-webbrowser.open("iss.txt")
-
-# Setup the world map in turtle module
-screen = turtle.Screen()
-screen.setup(1280, 720)
-screen.setworldcoordinates(-180, -90, 180, 90)
-
-# load the world map image
-screen.bgpic("map.gif")
-screen.register_shape("iss.gif")
-iss = turtle.Turtle()
-iss.shape("iss.gif")
-iss.setheading(45)
-iss.penup()
-
-while True:
-    # load the current status of the ISS in real-time
-    url = "http://api.open-notify.org/iss-now.json"
+def fetch_iss_data():
+    url = "http://api.open-notify.org/astros.json"
     response = urllib.request.urlopen(url)
     result = json.loads(response.read())
 
-    # Extract the ISS location
-    location = result["iss_position"]
-    lat = location['latitude']
-    lon = location['longitude']
+    st.write(f"There are currently {result['number']} astronauts on the ISS:")
+    people = result["people"]
+    for p in people:
+        st.write(f"{p['name']} - on board")
 
-    lat = float(lat)
-    lon = float(lon)
+    # Print user's current lat/long
+    g = geocoder.ip('me')
+    st.write(f"\nYour current lat/long is: {g.latlng}")
 
+def display_iss_location():
+    m = folium.Map(location=[0, 0], zoom_start=2)  # Initialize map with a default location
 
-    # Update the ISS location on the map
-    iss.goto(lon, lat)
+    # Create a text element to display ISS location dynamically
+    iss_location_text = st.empty()
 
-    # Refresh each 5 seconds
-    time.sleep(5)
+    while True:
+        url = "http://api.open-notify.org/iss-now.json"
+        response = urllib.request.urlopen(url)
+        result = json.loads(response.read())
+
+        location = result["iss_position"]
+        lat = float(location['latitude'])
+        lon = float(location['longitude'])
+
+        # Update the text dynamically
+        iss_location_text.text(f"ISS Current Location: Latitude {lat}, Longitude {lon}")
+
+        # Add ISS marker to the map
+        folium.Marker([lat, lon], popup='ISS').add_to(m)
+
+        # Convert the folium map to HTML
+        m.save("index.html")
+
+        # Rerun the script to update the Streamlit app
+        st.experimental_rerun()
+
+        # Refresh every 5 seconds
+        time.sleep(5)
+
+def isslocation():
+    # Use components.iframe to embed the HTML file directly
+    components.iframe("index.html", width=800, height=600)
+
+    if st.button('Open Browser'):
+        webbrowser.open_new_tab("index.html")
+
+def main():
+    st.title("ISS Tracker App")
+    fetch_iss_data()
+
+    # Run display_iss_location in a separate thread to allow dynamic updates
+    display_iss_location()
+
+    isslocation()
+
+if __name__ == "__main__":
+    main()
